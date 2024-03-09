@@ -10,7 +10,4 @@ Feel free to explore the capabilities of the function, open issues, and share id
 ## Example
 
 This example demonstrates how to create a figure with multiple subplots using the `Nplot_figure_tiledlayout` function and MATLAB's `tiledlayout` function.
-![Gráfico de datos](data_plots%102.png)
-
-
-![[data_plots 2.png]]
+![Data Plots](data_plots 1.png)
