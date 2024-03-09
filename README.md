@@ -7,8 +7,8 @@ One of the **key** features I incorporated was the ability to accommodate a top 
 Feel free to explore the capabilities of the function, open issues, and share ideas, customize it to suit your specific needs.
 
 
-## Example 
+## Example
 
 This example demonstrates how to create a figure with multiple subplots using the `Nplot_figure_tiledlayout` function and MATLAB's `tiledlayout` function.
 
-![[data_plots 2.png]]
+![Data Plots](data_plots 1.png)
