@@ -65,6 +65,7 @@ function Nplot_figure_tiledlayout(figureHandle, numPlotsPerRow, numRows, varargi
 % Date:
 %   [Current Date]
 p = inputParser;
+addParameter(p, 'SinglePlot', false, @islogical);
 addParameter(p, 'FontName', 'Arial', @ischar);
 addParameter(p, 'FontSize', 6, @isnumeric);
 addParameter(p, 'LineWidth', 0.5, @isnumeric);
@@ -95,155 +96,235 @@ addParameter(p, 'TitleStyle', 'normal', @ischar);
 addParameter(p, 'TitleColor', 'k', @ischar);
 addParameter(p, 'StyleProfile', 'default', @ischar);
 addParameter(p, 'ColorbarLocation', 'northoutside', @ischar);
+
 parse(p, varargin{:});
 params = p.Results;
 
-% Adjust font sizes for labels and titles if not specified
-if isempty(params.LabelFontSize)
-    params.LabelFontSize = params.FontSize;
-end
-if isempty(params.TitleFontSize)
-    params.TitleFontSize = params.FontSize + 1;
-end
-if isempty(params.LegendFontSize)
-    params.LegendFontSize = params.FontSize;
-end
 
-% Validate figure handle
-if ~ishandle(figureHandle) || ~strcmp(get(figureHandle, 'Type'), 'figure')
-    error('Invalid figure handle.');
-end
+if params.SinglePlot
+    % Set default values for Plots_functionPNAS parameters
+    xScale = 'linear';
+    yScale = 'linear';
+    colorScale = '';
+    markersizeplot = 9;
 
-% Check if the specified font is available, else use the backup font
-if ~any(strcmp(listfonts, params.FontName))
-    warning('Font "%s" is not available. Using backup font "%s" instead.', params.FontName, params.BackupFont);
-    params.FontName = params.BackupFont;
-end
-
-% Set initial figure size and properties
-setFigureSizeAndProperties(figureHandle, numPlotsPerRow, numRows, params);
-
-% Create tiled layout
-tl = tiledlayout(figureHandle, numRows, numPlotsPerRow, 'TileSpacing', params.TileSpacing, 'Padding', params.Padding);
-
-% Adjust each plot within the layout
-adjustPlotsInLayout(tl, params);
-
-% Accommodate colorbar at the top, adjusting figure size if necessary
-if strcmp(params.ColorbarLocation, 'northoutside')
-    accommodateTopColorbar(figureHandle, tl, params);
-end
-end
-
-function setFigureSizeAndProperties(figureHandle, numPlotsPerRow, numRows, params)
-% Calculate and set the figure size based on the number of plots and their aspect ratio
-plotWidth = params.PlotHeight * params.AspectRatio;
-figureWidth = plotWidth * numPlotsPerRow;
-figureHeight = params.PlotHeight * numRows;
-
-% Adjust figure properties
-set(figureHandle, 'Units', 'centimeters');
-figPos = get(figureHandle, 'Position');
-set(figureHandle, 'Position', [figPos(1), figPos(2), figureWidth, figureHeight], ...
-    'PaperUnits', 'centimeters', ...
-    'PaperPosition', [0, 0, figureWidth, figureHeight], ...
-    'PaperSize', [figureWidth, figureHeight], ...
-    'Color', 'w');
-end
-
-function adjustPlotsInLayout(tl, params)
-% Set properties for each plot in the layout
-% Get all axes in the tiled layout
-axesInLayout = findobj(tl, 'Type', 'Axes');
-
-% Adjust properties for each axis
-for axesHandle = axesInLayout'
-    set(axesHandle, 'FontName', params.FontName, 'FontSize', params.FontSize, ...
-        'LineWidth', params.LineWidth, 'Color', params.AxisColor, ...
-        'TickDir', 'out', 'TickLength', [0.02, 0.02], ...
-        'XColor', params.AxisColor, 'XMinorTick', 'on', ...
-        'YColor', params.AxisColor, 'YMinorTick', 'on', ...
-        'ZColor', params.AxisColor, 'ZMinorTick', 'on', 'TickDir', 'out', 'box', 'on');
-
-    % Set the scale for each axis
-    set(axesHandle, 'XScale', params.XScale, 'YScale', params.YScale, 'ZScale', params.ZScale);
-
-    % Set line and marker properties based on plot type
-    if strcmp(params.PlotType, 'scatter')
-        markerSizeScatter = floor(pi * (params.MarkerSize / 4) ^ 2);
-        set(axesHandle, 'Marker', 'o', 'MarkerSize', markerSizeScatter, ...
-            'MarkerEdgeColor', params.MarkerColor, 'MarkerFaceColor', params.MarkerColor);
-    elseif strcmp(params.PlotType, 'loglog')
-        set(axesHandle, 'XScale', 'log', 'YScale', 'log');
-    elseif strcmp(params.PlotType, 'plot3')
-        set(axesHandle, 'ZColor', params.AxisColor, 'ZMinorTick', 'on');
-    elseif strcmp(params.PlotType, 'semilogx')
-        set(axesHandle, 'XScale', 'log');
-    elseif strcmp(params.PlotType, 'semilogy')
-        set(axesHandle, 'YScale', 'log');
+    % Override default values if specified in varargin
+    if any(strcmp(varargin, 'XScale'))
+        xScale = params.XScale;
+    end
+    if any(strcmp(varargin, 'YScale'))
+        yScale = params.YScale;
+    end
+    if isfield(params, 'ColorScale') && ~isempty(params.ColorScale)
+        colorScale = params.ColorScale;
+    end
+    if any(strcmp(varargin, 'MarkerSize'))
+        markersizeplot = params.MarkerSize;
     end
 
-    lines = findobj(axesHandle, 'Type', 'Line');
-    for j = 1:length(lines)
-        set(lines(j), 'LineWidth', params.LineWidth, 'Color', params.LineColor);
+    % Call Plots_functionPNAS with the correct parameters
+    markerSS = Plots_functionPNAS(xScale, yScale, colorScale, markersizeplot, params);
+else
+    % Set initial figure size and properties
+    setFigureSizeAndProperties(figureHandle, numPlotsPerRow, numRows, params);
+
+    % Create tiled layout
+    tl = tiledlayout(figureHandle, numRows, numPlotsPerRow, 'TileSpacing', params.TileSpacing, 'Padding', params.Padding);
+
+    % Adjust each plot within the layout
+    for i = 1:numRows*numPlotsPerRow
+        nexttile;
+        colorScale = '';
+        if isfield(params, 'ColorScale') && ~isempty(params.ColorScale)
+            colorScale = params.ColorScale;
+        end
+        markerSS = Plots_functionPNAS(params.XScale, params.YScale, colorScale, params.MarkerSize, params);
     end
 
-    % Add grid lines
-    grid(axesHandle, 'off');
+    % Accommodate colorbar at the top, adjusting figure size if necessary
+    if strcmp(params.ColorbarLocation, 'northoutside')
+        accommodateTopColorbar(figureHandle, tl, params);
+    end
+end
 
-    % Set the aspect ratio of each plot
-    pbaspect(axesHandle, [params.AspectRatio, 1, 1]);
 
-    % Adjust colorbar properties (if present)
-    colorbarHandle = findobj(axesHandle, 'Type', 'Colorbar');
-    if ~isempty(colorbarHandle)
-        set(colorbarHandle, 'FontName', params.FontName, 'FontSize', params.FontSize, ...
-            'LineWidth', params.LineWidth, 'Color', params.AxisColor);
-        colorbarHandle.Label.FontSize = params.LabelFontSize;
-        colorbarHandle.Label.Interpreter = params.ColorbarLabelInterpreter;
-        colorbarHandle.Label.String = params.ColorbarLabel;
+
+
+
+
+    function setFigureSizeAndProperties(figureHandle, numPlotsPerRow, numRows, params)
+        % Calculate and set the figure size based on the number of plots and their aspect ratio
+        plotWidth = params.PlotHeight * params.AspectRatio;
+        figureWidth = plotWidth * numPlotsPerRow;
+        figureHeight = params.PlotHeight * numRows;
+
+        % Adjust figure properties
+        set(figureHandle, 'Units', 'centimeters');
+        figPos = get(figureHandle, 'Position');
+        set(figureHandle, 'Position', [figPos(1), figPos(2), figureWidth, figureHeight], ...
+            'PaperUnits', 'centimeters', ...
+            'PaperPosition', [0, 0, figureWidth, figureHeight], ...
+            'PaperSize', [figureWidth, figureHeight], ...
+            'Color', 'w');
     end
 
-    % Adjust title font size, style, and color
-    title = get(axesHandle, 'Title');
-    set(title, 'FontSize', params.TitleFontSize, 'FontWeight', params.TitleStyle, 'Color', params.TitleColor);
+    function adjustPlotsInLayout(tl, params)
+        % Set properties for each plot in the layout
+        % Get all axes in the tiled layout
+        axesInLayout = findobj(tl, 'Type', 'Axes');
 
-    % Adjust legend properties (if present)
-    legendHandle = findobj(axesHandle, 'Type', 'Legend');
-    if ~isempty(legendHandle)
-        set(legendHandle, 'FontName', params.FontName, 'FontSize', params.LegendFontSize, ...
-            'LineWidth', params.LineWidth, 'EdgeColor', params.AxisColor, 'Color', 'none', ...
-            'Interpreter', params.LegendInterpreter, 'Location', params.LegendLocation);
+        % Adjust properties for each axis
+        for axesHandle = axesInLayout'
+            set(axesHandle, 'FontName', params.FontName, 'FontSize', params.FontSize, ...
+                'LineWidth', params.LineWidth, 'Color', params.AxisColor, ...
+                'TickDir', 'out', 'TickLength', [0.02, 0.02], ...
+                'XColor', params.AxisColor, 'XMinorTick', 'on', ...
+                'YColor', params.AxisColor, 'YMinorTick', 'on', ...
+                'ZColor', params.AxisColor, 'ZMinorTick', 'on', 'TickDir', 'out', 'box', 'on');
+
+            % Set the scale for each axis
+            set(axesHandle, 'XScale', params.XScale, 'YScale', params.YScale, 'ZScale', params.ZScale);
+
+            % Set line and marker properties based on plot type
+            if strcmp(params.PlotType, 'scatter')
+                markerSizeScatter = floor(pi * (params.MarkerSize / 4) ^ 2);
+                set(axesHandle, 'Marker', 'o', 'MarkerSize', markerSizeScatter, ...
+                    'MarkerEdgeColor', params.MarkerColor, 'MarkerFaceColor', params.MarkerColor);
+            elseif strcmp(params.PlotType, 'loglog')
+                set(axesHandle, 'XScale', 'log', 'YScale', 'log');
+            elseif strcmp(params.PlotType, 'plot3')
+                set(axesHandle, 'ZColor', params.AxisColor, 'ZMinorTick', 'on');
+            elseif strcmp(params.PlotType, 'semilogx')
+                set(axesHandle, 'XScale', 'log');
+            elseif strcmp(params.PlotType, 'semilogy')
+                set(axesHandle, 'YScale', 'log');
+            end
+
+            lines = findobj(axesHandle, 'Type', 'Line');
+            for j = 1:length(lines)
+                set(lines(j), 'LineWidth', params.LineWidth, 'Color', params.LineColor);
+            end
+
+            % Add grid lines
+            grid(axesHandle, 'off');
+
+            % Set the aspect ratio of each plot
+            pbaspect(axesHandle, [params.AspectRatio, 1, 1]);
+
+            % Adjust colorbar properties (if present)
+            colorbarHandle = findobj(axesHandle, 'Type', 'Colorbar');
+            if ~isempty(colorbarHandle)
+                set(colorbarHandle, 'FontName', params.FontName, 'FontSize', params.FontSize, ...
+                    'LineWidth', params.LineWidth, 'Color', params.AxisColor);
+                colorbarHandle.Label.FontSize = params.LabelFontSize;
+                colorbarHandle.Label.Interpreter = params.ColorbarLabelInterpreter;
+                colorbarHandle.Label.String = params.ColorbarLabel;
+            end
+
+            % Adjust title font size, style, and color
+            title = get(axesHandle, 'Title');
+            set(title, 'FontSize', params.TitleFontSize, 'FontWeight', params.TitleStyle, 'Color', params.TitleColor);
+
+            % Adjust legend properties (if present)
+            legendHandle = findobj(axesHandle, 'Type', 'Legend');
+            if ~isempty(legendHandle)
+                set(legendHandle, 'FontName', params.FontName, 'FontSize', params.LegendFontSize, ...
+                    'LineWidth', params.LineWidth, 'EdgeColor', params.AxisColor, 'Color', 'none', ...
+                    'Interpreter', params.LegendInterpreter, 'Location', params.LegendLocation);
+            end
+
+            % Adjust axis label font size, style, color, and orientation
+            xLabel = get(axesHandle, 'XLabel');
+            yLabel = get(axesHandle, 'YLabel');
+            zLabel = get(axesHandle, 'ZLabel');
+            set([xLabel, yLabel, zLabel], 'FontSize', params.LabelFontSize, 'FontWeight', params.AxisLabelStyle, ...
+                'Color', params.AxisLabelColor);
+        end
+
+        % Adjust text properties
+        textHandles = findobj(tl, 'Type', 'Text');
+        for i = 1:length(textHandles)
+            set(textHandles(i), 'FontName', params.FontName, 'FontSize', params.FontSize, 'Color', params.AxisColor);
+        end
     end
 
-    % Adjust axis label font size, style, color, and orientation
-    xLabel = get(axesHandle, 'XLabel');
-    yLabel = get(axesHandle, 'YLabel');
-    zLabel = get(axesHandle, 'ZLabel');
-    set([xLabel, yLabel, zLabel], 'FontSize', params.LabelFontSize, 'FontWeight', params.AxisLabelStyle, ...
-        'Color', params.AxisLabelColor);
+    function accommodateTopColorbar(figureHandle, tl, params)
+        % Adjust figure and tiled layout size to include a colorbar at the top
+        % Estimate additional space required for the colorbar
+        colorbarHeight = params.PlotHeight * 0.2; % Example factor, adjust based on actual colorbar size
+
+        % Get current figure dimensions
+        figPos = get(figureHandle, 'Position');
+
+        % Update figure height to accommodate the colorbar
+        newFigHeight = figPos(4) + colorbarHeight;
+        set(figureHandle, 'Position', [figPos(1), figPos(2), figPos(3), newFigHeight]);
+
+        % Update tiled layout to fill the figure except for colorbar space
+        set(tl, 'InnerPosition', [0, 0, 1, (figPos(4) / newFigHeight)]);
+    end
+    function markerSS = Plots_functionPNAS(xScale, yScale, colorScale, markersizeplot, params)
+        % Set paper dimensions and font properties
+        paper_width = 8.7; % cm (single column width)
+        paper_height = 6; % cm
+        font_size = 9;
+        line_width = 0.5;
+        tick_length = [0.01 0.01];
+ 
+        % Calculate marker size for scatter plots
+        markerSS = floor(pi * (markersizeplot / 4)^2);
+         set(gcf, 'PaperUnits', 'centimeters', ...
+            'PaperPosition', [0 0 paper_width paper_height], ...
+            'PaperSize', [paper_width paper_height], 'Color', 'w');
+        % Figure configuration
+      
+        box on;
+
+        % Axis configuration
+        set(gca, 'FontSize', font_size, ...
+            'FontName', params.FontName, ...
+            'LineWidth', line_width, ...
+            'TickLength', tick_length, ...
+            'XColor', params.AxisColor, 'XMinorTick', 'on', 'XScale', xScale, ...
+            'YColor', params.AxisColor, 'YMinorTick', 'on', 'YScale', yScale, ...
+            'ZColor', params.AxisColor, 'ZMinorTick', 'on', ...
+            'TickDir', 'out', 'box', 'on');
+
+        % Configure X-axis and Y-axis ticks for log scale
+        configureLogTicks('X', xScale);
+        configureLogTicks('Y', yScale);
+
+        % Configure colorbar
+        cbar = findobj(gcf, 'Type', 'ColorBar');
+
+
+        if ~isempty(cbar)
+        
+            
+            set(cbar, 'FontSize', font_size - 2, ...
+                'FontName', params.FontName, ...
+                'TickLength', 0.01, ...
+                'LineWidth', line_width);
+            cbar.Label.Interpreter = params.ColorbarLabelInterpreter;
+        end
+
+        % Configure color scale
+        if exist('colorScale', 'var') && ~isempty(colorScale)
+            set(gca, 'ColorScale', colorScale);
+        end
+
+        % Add grid lines
+        grid on;
+    end
+
+    function configureLogTicks(axis, scaleType)
+        if strcmp(scaleType, 'log')
+            limits = get(gca, [axis, 'Lim']);
+            limits(limits <= 0) = 1e-20;
+            newTicks = logspace(log10(limits(1)), log10(limits(2)), 4);
+            set(gca, [axis, 'Tick'], newTicks);
+            tickLabels = arrayfun(@(x) ['10^{', num2str(round(log10(x))), '}'], newTicks, 'UniformOutput', false);
+            set(gca, [axis, 'TickLabel'], tickLabels);
+        end
+    end
 end
-
-% Adjust text properties
-textHandles = findobj(tl, 'Type', 'Text');
-for i = 1:length(textHandles)
-    set(textHandles(i), 'FontName', params.FontName, 'FontSize', params.FontSize, 'Color', params.AxisColor);
-end
-end
-
-function accommodateTopColorbar(figureHandle, tl, params)
-% Adjust figure and tiled layout size to include a colorbar at the top
-% Estimate additional space required for the colorbar
-colorbarHeight = params.PlotHeight * 0.2; % Example factor, adjust based on actual colorbar size
-
-% Get current figure dimensions
-figPos = get(figureHandle, 'Position');
-
-% Update figure height to accommodate the colorbar
-newFigHeight = figPos(4) + colorbarHeight;
-set(figureHandle, 'Position', [figPos(1), figPos(2), figPos(3), newFigHeight]);
-
-% Update tiled layout to fill the figure except for colorbar space
-set(tl, 'InnerPosition', [0, 0, 1, (figPos(4) / newFigHeight)]);
-end
-
